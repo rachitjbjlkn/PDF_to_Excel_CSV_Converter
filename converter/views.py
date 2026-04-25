@@ -83,27 +83,20 @@ def convert(request):
                         else:
                             df = pd.DataFrame(cleaned)
                         
-                        df.insert(0, 'Page', page_num)
-                        df.insert(1, 'Table_Number', table_idx + 1)
                         all_tables.append(df)
                 else:
                     text = page.extract_text()
                     if text:
                         lines = [line.strip() for line in text.split('\n') if line.strip()]
-                        for line_idx, line in enumerate(lines):
+                        for line in lines:
                             if line:
-                                raw_text_data.append({
-                                    'Page': page_num,
-                                    'Line': line_idx + 1,
-                                    'Content': line,
-                                    'Words': ' | '.join(line.split())
-                                })
+                                raw_text_data.append(line)
 
         if all_tables:
             final_df = pd.concat(all_tables, ignore_index=True)
             final_df = final_df.fillna('')
         elif raw_text_data:
-            final_df = pd.DataFrame(raw_text_data)
+            final_df = pd.DataFrame({'Text': raw_text_data})
         else:
             return JsonResponse({'error': 'No extractable content found in the PDF.'}, status=400)
 
