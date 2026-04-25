@@ -5,6 +5,12 @@ It extracts tables automatically, and falls back to structured text rows when no
 
 ---
 
+## Live Demo
+
+**Deployed on Render:** https://pdf-to-excel-csv-converter.onrender.com
+
+---
+
 ## Project Structure
 
 ```
@@ -24,6 +30,38 @@ pdf_converter/
         └── converter/
             └── index.html
 ```
+
+---
+
+## Deploy on Render
+
+### 1. Push to GitHub
+Make sure your code is pushed to GitHub (already done).
+
+### 2. Create a Web Service on Render
+
+1. Go to [render.com](https://render.com) and sign up/login
+2. Click **"New"** → **"Web Service"**
+3. Connect your GitHub repository
+4. Configure:
+   - **Name:** pdf-converter
+   - **Branch:** master
+   - **Root Directory:** (leave empty)
+   - **Runtime:** Python 3
+   - **Build Command:** `pip install -r requirements.txt`
+   - **Start Command:** `gunicorn pdf_converter.wsgi:application`
+
+### 3. Environment Variables
+
+Add these in Render's Environment section:
+- `PYTHON_VERSION`: `3.11.0` (or `3.10`)
+- `DISABLE_COLLECTSTATIC`: `1`
+
+### 4. Deploy
+
+Click **"Create Web Service"** and wait for deployment.
+
+Your app will be live at: `https://pdf-converter.onrender.com`
 
 ---
 
