@@ -1,0 +1,38 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+env/
+.env
+
+# Python packages (venv)
+pdf_converter/Lib/
+pdf_converter/Scripts/
+pdf_converter/pyvenv.cfg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+
+# Distribution / packaging
+*.egg-info/
+dist/
+build/
+
+# Cache
+.cache/
+.pytest_cache/
