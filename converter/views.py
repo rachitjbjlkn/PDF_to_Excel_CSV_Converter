@@ -2,6 +2,7 @@ import io
 import os
 import re
 import csv
+import json
 import base64
 import requests
 import pdfplumber
@@ -38,24 +39,85 @@ def extract_tables_smarter(page):
 
 def extract_text_with_ocr(pdf_bytes):
     try:
-        api_url = 'https://api.ocr.space/parse/image'
-        payload = {
-            'isOverlayRequired': False,
-            'detectOrientation': True,
-            'language': 'eng',
-        }
-        files = {'file': ('pdf.pdf', pdf_bytes, 'application/pdf')}
-        headers = {'apikey': 'helloworld'}
+        import fitz
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        images = []
+        for page_num in range(len(doc)):
+            page = doc[page_num]
+            pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+            img_data = pix.tobytes("png")
+            images.append(base64.b64encode(img_data).decode('utf-8'))
+        doc.close()
         
-        response = requests.post(api_url, files=files, data=payload, headers=headers, timeout=30)
+        if not images:
+            return ''
+        
+        prompt = """Look at this image from a PDF document. Extract ALL text you can see, especially any handwritten text. 
+Return the result as a JSON array of arrays with headers and rows, like: [["Header1", "Header2"], ["Row1Col1", "Row1Col2"], ["Row2Col1", "Row2Col2"]]
+If it's not a table, just return a simple JSON array with one column: [["Line1"], ["Line2"], ["Line3"]]"""
+
+        api_key = os.environ.get('GEMINI_API_KEY', '')
+        if not api_key:
+            api_url = 'https://api.ocr.space/parse/image'
+            payload = {
+                'isOverlayRequired': False,
+                'detectOrientation': True,
+                'language': 'eng',
+                'isWriteable': True,
+            }
+            files = {'file': ('pdf.pdf', pdf_bytes, 'application/pdf')}
+            headers = {'apikey': 'helloworld'}
+            response = requests.post(api_url, files=files, data=payload, headers=headers, timeout=60)
+            result = response.json()
+            if result.get('ParsedResults'):
+                texts = []
+                for pr in result['ParsedResults']:
+                    texts.append(pr.get('ParsedText', ''))
+                return '\n'.join(texts)
+            return ''
+        
+        url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}'
+        
+        headers = {'Content-Type': 'application/json'}
+        
+        parts = []
+        for img_b64 in images:
+            parts.append({"inline_data": {"mime_type": "image/png", "data": img_b64}})
+        
+        data = {
+            "contents": [{"parts": parts + [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": 0.1,
+                "maxOutputTokens": 8000,
+            }
+        }
+        
+        response = requests.post(url, headers=headers, json=data, timeout=120)
         result = response.json()
         
-        if result.get('ParsedResults'):
-            texts = []
-            for pr in result['ParsedResults']:
-                texts.append(pr.get('ParsedText', ''))
-            return '\n'.join(texts)
-    except Exception:
+        if 'candidates' in result and result['candidates']:
+            text = result['candidates'][0]['content']['parts'][0]['text']
+            text = text.strip()
+            if text.startswith('```json'):
+                text = text[7:]
+            if text.endswith('```'):
+                text = text[:-3]
+            text = text.strip()
+            
+            try:
+                data = json.loads(text)
+                if isinstance(data, list) and len(data) >= 1:
+                    lines = []
+                    for row in data:
+                        if isinstance(row, list):
+                            lines.append(' | '.join(str(cell) for cell in row))
+                        else:
+                            lines.append(str(row))
+                    return '\n'.join(lines)
+            except:
+                return text
+        
+    except Exception as e:
         pass
     return ''
 
@@ -118,7 +180,7 @@ def convert(request):
                             if line:
                                 raw_text_data.append(line)
         
-        if not all_tables and not raw_text_data:
+        if not all_tables:
             ocr_text = extract_text_with_ocr(pdf_bytes)
             if ocr_text:
                 lines = [line.strip() for line in ocr_text.split('\n') if line.strip()]
