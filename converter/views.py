@@ -2,10 +2,10 @@ import io
 import os
 import re
 import csv
+import base64
+import requests
 import pdfplumber
 import pandas as pd
-import pytesseract
-from pdf2image import convert_from_bytes
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
@@ -37,15 +37,27 @@ def extract_tables_smarter(page):
 
 
 def extract_text_with_ocr(pdf_bytes):
-    images = convert_from_bytes(pdf_bytes)
-    all_text = []
-    
-    for image in images:
-        text = pytesseract.image_to_string(image)
-        if text:
-            all_text.append(text)
-    
-    return '\n'.join(all_text)
+    try:
+        api_url = 'https://api.ocr.space/parse/image'
+        payload = {
+            'isOverlayRequired': False,
+            'detectOrientation': True,
+            'language': 'eng',
+        }
+        files = {'file': ('pdf.pdf', pdf_bytes, 'application/pdf')}
+        headers = {'apikey': 'helloworld'}
+        
+        response = requests.post(api_url, files=files, data=payload, headers=headers, timeout=30)
+        result = response.json()
+        
+        if result.get('ParsedResults'):
+            texts = []
+            for pr in result['ParsedResults']:
+                texts.append(pr.get('ParsedText', ''))
+            return '\n'.join(texts)
+    except Exception:
+        pass
+    return ''
 
 
 @csrf_exempt
