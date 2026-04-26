@@ -4,6 +4,8 @@ import re
 import csv
 import pdfplumber
 import pandas as pd
+import pytesseract
+from pdf2image import convert_from_bytes
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
@@ -32,6 +34,18 @@ def extract_tables_smarter(page):
         if table:
             return [[table]]
     return []
+
+
+def extract_text_with_ocr(pdf_bytes):
+    images = convert_from_bytes(pdf_bytes)
+    all_text = []
+    
+    for image in images:
+        text = pytesseract.image_to_string(image)
+        if text:
+            all_text.append(text)
+    
+    return '\n'.join(all_text)
 
 
 @csrf_exempt
@@ -91,6 +105,14 @@ def convert(request):
                         for line in lines:
                             if line:
                                 raw_text_data.append(line)
+        
+        if not all_tables and not raw_text_data:
+            ocr_text = extract_text_with_ocr(pdf_bytes)
+            if ocr_text:
+                lines = [line.strip() for line in ocr_text.split('\n') if line.strip()]
+                for line in lines:
+                    if line:
+                        raw_text_data.append(line)
 
         if all_tables:
             final_df = pd.concat(all_tables, ignore_index=True)
